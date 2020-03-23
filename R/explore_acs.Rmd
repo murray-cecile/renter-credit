@@ -1,0 +1,193 @@
+---
+title: "Exploring renter population vulnerable to COVID-19"
+author: "Cecile Murray"
+date: "3/23/2020"
+output: 
+  html_document:
+    code_folding: hide
+
+---
+
+### **Setup**
+
+```{r setup, results='hide', message=FALSE, error=FALSE}
+libs <- c("here",
+          "tidyverse",
+          "magrittr",
+          "purrr",
+          "knitr", 
+          "kableExtra",
+          "janitor",
+          "ipumsr",
+          "haven")
+lapply(libs, library, character.only = TRUE)
+
+load("../data/acs/acs_2018.Rdata")
+```
+
+#### **Recoding**
+
+- Group individuals into categories by age
+
+- Recode race/Hispanic origin variable
+
+- Create flag for poverty
+
+```{r recode, warning=FALSE, message=FALSE}
+# generate age categories, race/ethnicity recode
+data %<>% 
+  mutate(
+    age_cat = case_when(
+      AGE < 20 ~ "Under20",
+      between(AGE, 20, 29) ~ "20-29",
+      between(AGE, 30, 39) ~ "30-39",
+      between(AGE, 40, 49) ~ "40-49",
+      between(AGE, 50, 59) ~ "50-59",
+      between(AGE, 60, 69) ~ "60-69",
+      between(AGE, 70, 79) ~ "70-79",
+      between(AGE, 80, 89) ~ "80-89",
+      between(AGE, 90, 99) ~ "90-99",
+      AGE >= 100 ~ "100+"),
+    raceth = case_when(
+      RACE == 1 & HISPAN %in% c(0, 9) ~ "white",
+      RACE == 2 & HISPAN %in% c(0, 9) ~ "black",
+      RACE == 3 & HISPAN %in% c(0, 9) ~ "ai_an",
+      between(RACE, 4, 6) & HISPAN %in% c(0, 9) ~ "east_asian",
+      RACE > 6 & HISPAN %in% c(0, 9) ~ "other_mult",
+      between(HISPAN, 1, 4) ~ "hispanic",
+      TRUE ~ "not determined"
+    ),
+    poor = if_else(POVERTY < 100, TRUE, FALSE)) 
+
+# filter to only renters
+renters <- data %>% filter(OWNERSHP == 2)
+```
+
+### **National numbers**
+
+#### Age
+
+About half the people in renter households are under age 30. Only one-quarter of these people are over 60.
+
+```{r natl_age}
+# function to compute # of people, renters, and shares of renters
+get_renter_age_dist <- function(df, subdf) {
+  age_table <- full_join(
+    count(data, age_cat, wt = PERWT, sort = TRUE),
+    count(renters, age_cat, wt = PERWT, sort = TRUE),
+    by = "age_cat",
+    suffix = c("_all", "_renters")
+  ) %>% 
+    mutate(share_renting = n_renters / n_all,
+           share_of_renters = n_renters / sum(n_renters),
+           cumulative_share_of_renters = cumsum(share_of_renters))
+  return(age_table)
+}
+
+natl_age_table <- get_renter_age_dist(data, renters)
+
+kable(natl_age_table,
+      caption = "Age distribution of renters, 2018")
+```
+
+**Poverty status**
+
+```{r renter_poverty}
+# summarize poverty for people in renter households
+get_pov_by_age_dist <- function(df) {
+  rv <- df %>% 
+    group_by(poor) %>% 
+    count(age_cat, wt = PERWT, sort = TRUE) %>% 
+    spread("poor", "n") %>% 
+    clean_names() %>% 
+    dplyr::rename("not_poor" = "false",
+                  "poor" = "true") %>% 
+    mutate(total = poor + not_poor,
+           povrate = poor / total)
+  return(rv)
+}
+
+natl_renter_poverty <- get_pov_by_age_dist(renters)
+
+# number of poor people in renter households by age
+natl_renter_poverty %>% 
+  ggplot(aes(x = reorder(age_cat, -total),
+             y = poor)) +
+  geom_col() +
+  geom_text(aes(label = poor), nudge_y = 300000) +
+  scale_y_continuous(labels = scales::number) +
+  labs(title = "More poor renters are young",
+       subtitle = "Poor people living in renter households by age category, 2018",
+       x = "Age Category",
+       y = "Number of poor people",
+       caption = "Source: ACS PUMS via IPUMS") +
+  theme_minimal()
+
+
+natl_renter_poverty %>% 
+  ggplot(aes(x = reorder(age_cat, -total),
+             y = povrate)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "About a fifth of older renters are poor",
+       subtitle = "Share of people living in renter households by age category, 2018",
+       x = "Age Category",
+       y = "Share in poverty",
+       caption = "Source: ACS PUMS via IPUMS") +
+  theme_minimal()
+
+```
+
+```{r renter_poverty_nokids}
+# summarize poverty for people in renter households, no kids/teens
+natl_renter_poverty_nokids <- renters %>% 
+  filter(AGE > 19) %>% 
+  get_pov_by_age_dist()
+
+# number of poor people in renter households by age
+natl_renter_poverty_nokids %>% 
+  ggplot(aes(x = reorder(age_cat, -total),
+             y = poor)) +
+  geom_col() +
+  geom_text(aes(label = poor), nudge_y = 200000) +
+  scale_y_continuous(labels = scales::number) +
+  labs(title = "More poor renters are young",
+       subtitle = "Poor people living in renter households by age category, 2018",
+       x = "Age Category",
+       y = "Number of poor people",
+       caption = "Source: ACS PUMS via IPUMS") +
+  theme_minimal()
+
+
+natl_renter_poverty_nokids %>% 
+  ggplot(aes(x = reorder(age_cat, -total),
+             y = povrate)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "About a fifth of older renters are poor",
+       subtitle = "Share of people living in renter households by age category, 2018",
+       x = "Age Category",
+       y = "Share in poverty",
+       caption = "Source: ACS PUMS via IPUMS") +
+  theme_minimal()
+```
+
+#### **Income**
+
+- occupations: need to sort based on ability to telework
+
+- health insurance coverage?
+
+- look for multigenerational households, perhaps by # of rooms/bedrooms
+
+
+Technical notes:
+
+- this definition of renters excludes group quarters (OWNERSHP == 2 )
+
+### **State-by-state numbers**
+
+
+### **Metro area numbers**
+
+- TO DO: build PUMA-MSA crosswalk
