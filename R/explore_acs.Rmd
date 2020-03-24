@@ -1,14 +1,16 @@
 ---
 title: "Exploring renter population vulnerable to COVID-19"
 author: "Cecile Murray"
-date: "3/23/2020"
-output: 
+date: "`r format(Sys.Date(), '%d %B, %Y')`"
+output:
+  pdf_document: default
   html_document:
     code_folding: hide
-
 ---
 
-### **Setup**
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE)
+```
 
 ```{r setup, results='hide', message=FALSE, error=FALSE}
 libs <- c("here",
@@ -22,52 +24,34 @@ libs <- c("here",
           "haven")
 lapply(libs, library, character.only = TRUE)
 
-load("../data/acs/acs_2018.Rdata")
+load("../data/acs/prepared_data_2018.Rdata")
+load("../data/acs/renters_2018.Rdata")
+
+source("theme.R")
 ```
 
-#### **Recoding**
+#### **Preliminary steps**
 
 - Group individuals into categories by age
 
 - Recode race/Hispanic origin variable
 
-- Create flag for poverty
+- Create flag for poverty, groups for % of poverty
 
-```{r recode, warning=FALSE, message=FALSE}
-# generate age categories, race/ethnicity recode
-data %<>% 
-  mutate(
-    age_cat = case_when(
-      AGE < 20 ~ "Under20",
-      between(AGE, 20, 29) ~ "20-29",
-      between(AGE, 30, 39) ~ "30-39",
-      between(AGE, 40, 49) ~ "40-49",
-      between(AGE, 50, 59) ~ "50-59",
-      between(AGE, 60, 69) ~ "60-69",
-      between(AGE, 70, 79) ~ "70-79",
-      between(AGE, 80, 89) ~ "80-89",
-      between(AGE, 90, 99) ~ "90-99",
-      AGE >= 100 ~ "100+"),
-    raceth = case_when(
-      RACE == 1 & HISPAN %in% c(0, 9) ~ "white",
-      RACE == 2 & HISPAN %in% c(0, 9) ~ "black",
-      RACE == 3 & HISPAN %in% c(0, 9) ~ "ai_an",
-      between(RACE, 4, 6) & HISPAN %in% c(0, 9) ~ "east_asian",
-      RACE > 6 & HISPAN %in% c(0, 9) ~ "other_mult",
-      between(HISPAN, 1, 4) ~ "hispanic",
-      TRUE ~ "not determined"
-    ),
-    poor = if_else(POVERTY < 100, TRUE, FALSE)) 
+- Group individuals into categories by household income
 
-# filter to only renters
-renters <- data %>% filter(OWNERSHP == 2)
-```
+Technical notes:
 
-### **National numbers**
+- Renters (OWNERSHP == 2 ) excludes group quarters 
 
-#### Age
 
-About half the people in renter households are under age 30. Only one-quarter of these people are over 60.
+## **National numbers**
+
+#### **Age**
+
+- About half the people in renter households are under age 30. 
+
+- One-quarter of people living in renter households are over 60.
 
 ```{r natl_age}
 # function to compute # of people, renters, and shares of renters
@@ -87,10 +71,14 @@ get_renter_age_dist <- function(df, subdf) {
 natl_age_table <- get_renter_age_dist(data, renters)
 
 kable(natl_age_table,
-      caption = "Age distribution of renters, 2018")
+      caption = "Age distribution of renters, 2018",
+      col.names = c("Age", "Total #", "# in renter households", "Share renting",
+                    "Share of renters", "Cumulative share of renters"),
+      digits = 2) %>% 
+  kable_styling(latex_options = "HOLD_position")
 ```
 
-**Poverty status**
+#### **Poverty status**
 
 ```{r renter_poverty}
 # summarize poverty for people in renter households
@@ -113,81 +101,194 @@ natl_renter_poverty <- get_pov_by_age_dist(renters)
 natl_renter_poverty %>% 
   ggplot(aes(x = reorder(age_cat, -total),
              y = poor)) +
-  geom_col() +
-  geom_text(aes(label = poor), nudge_y = 300000) +
-  scale_y_continuous(labels = scales::number) +
+  geom_col(fill = terner_blue) +
+  geom_text(aes(label = scales::comma(poor)),
+            # family = "Minion Pro",
+            nudge_y = 300000) +
+  scale_y_continuous(labels = scales::comma) +
   labs(title = "More poor renters are young",
        subtitle = "Poor people living in renter households by age category, 2018",
        x = "Age Category",
        y = "Number of poor people",
        caption = "Source: ACS PUMS via IPUMS") +
-  theme_minimal()
+  terner_theme()
 
 
 natl_renter_poverty %>% 
   ggplot(aes(x = reorder(age_cat, -total),
              y = povrate)) +
-  geom_col() +
+  geom_col(fill = terner_blue) +
+  geom_text(aes(label = round(povrate * 100, 2)),
+            # family = "Minion Pro",
+            nudge_y = .01) +
   scale_y_continuous(labels = scales::percent) +
   labs(title = "About a fifth of older renters are poor",
        subtitle = "Share of people living in renter households by age category, 2018",
        x = "Age Category",
        y = "Share in poverty",
        caption = "Source: ACS PUMS via IPUMS") +
-  theme_minimal()
+  terner_theme()
 
 ```
 
-```{r renter_poverty_nokids}
-# summarize poverty for people in renter households, no kids/teens
-natl_renter_poverty_nokids <- renters %>% 
-  filter(AGE > 19) %>% 
-  get_pov_by_age_dist()
+```{r renter_poverty_level}
+# summarize poverty for people in renter households
+natl_renter_pov_by_lvl <- renters %>%
+  group_by(pov_level) %>% 
+  count(age_cat, wt = PERWT, sort = TRUE) %>% 
+  ungroup() %>% 
+  group_by(pov_level) %>% 
+  mutate(n_pov = sum(n),
+         age_share = n / n_pov) 
 
+                          
 # number of poor people in renter households by age
-natl_renter_poverty_nokids %>% 
-  ggplot(aes(x = reorder(age_cat, -total),
-             y = poor)) +
-  geom_col() +
-  geom_text(aes(label = poor), nudge_y = 200000) +
-  scale_y_continuous(labels = scales::number) +
-  labs(title = "More poor renters are young",
-       subtitle = "Poor people living in renter households by age category, 2018",
-       x = "Age Category",
-       y = "Number of poor people",
-       caption = "Source: ACS PUMS via IPUMS") +
-  theme_minimal()
-
-
-natl_renter_poverty_nokids %>% 
-  ggplot(aes(x = reorder(age_cat, -total),
-             y = povrate)) +
-  geom_col() +
+natl_renter_pov_by_lvl %>% 
+  ggplot(aes(x = age_cat,
+             y = age_share)) +
+  geom_col(position = "dodge",
+           fill = terner_blue) +
+  facet_wrap(~pov_level) +
   scale_y_continuous(labels = scales::percent) +
-  labs(title = "About a fifth of older renters are poor",
-       subtitle = "Share of people living in renter households by age category, 2018",
+  labs(title = "Poorer renters skew younger",
+       subtitle = "Share of people of each age living in renter households by % of poverty, 2018",
        x = "Age Category",
-       y = "Share in poverty",
+       y = "Percent of people in renter households",
        caption = "Source: ACS PUMS via IPUMS") +
-  theme_minimal()
+  terner_theme(axis.text.x = element_text(angle = 45))
 ```
 
 #### **Income**
 
-- occupations: need to sort based on ability to telework
+```{r natl_income}
+# summarize renters by income category
+natl_renter_income <- renters %>% 
+  count(income_level, wt = PERWT) %>% 
+  mutate(income_share = n / sum(n))
 
-- health insurance coverage?
+# plot the numbers
+natl_renter_income %>% 
+  ggplot(aes(x = income_level,
+             y = n)) +
+  geom_col(fill = terner_blue) +
+  geom_text(aes(label = scales::comma(n)),
+            # family = "Minion Pro",
+            nudge_y = 1000000) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "Most renters have low or modest incomes",
+       subtitle = "Number of people in renter households by household income, 2018",
+       x = "Household income bracket",
+       y = "",
+       caption = "ACS 2018 via IPUMS") +
+  terner_theme()
+
+# plot the percentages
+natl_renter_income %>% 
+  ggplot(aes(x = income_level,
+             y = income_share)) +
+  geom_col(fill = terner_blue) +
+  geom_text(aes(label = scales::percent(income_share)),
+            # family = "Minion Pro",
+            nudge_y = 0.01) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "Most renters have low or modest incomes",
+       subtitle = "Share of people in renter households by household income, 2018",
+       x = "Household income bracket",
+       y = "",
+       caption = "ACS 2018 via IPUMS") +
+  terner_theme()
+
+```
+
+#### **Cost burden**
+
+```{r natl_cost_burden}
+natl_cost_by_age <-  renters %>% 
+  mutate(cost_burden = RENT / HHINCOME,
+         burden_status = case_when(
+           HHINCOME == 0 ~ "Zero income",
+           cost_burden < 0.3 ~ "Not burdened",
+           between(cost_burden, 0.3, 0.5) ~ "30-50% cost burdened",
+           between(cost_burden, 0.500001, 1) ~ "50-100% cost burdened",
+           cost_burden > 1 ~ "> 100% cost burdened"
+         ),
+         burden_status = factor(burden_status,
+         levels = c("Zero income", "> 100% cost burdened",
+                    "50-100% cost burdened",
+                    "30-50% cost burdened",
+                    "Not burdened"))) %>% 
+  group_by(age_cat) %>% 
+  count(burden_status, wt = PERWT) %>% 
+  group_by(burden_status) %>% 
+  mutate(n_age = sum(n),
+            age_share = n / n_age)
+  
+natl_cost_by_age %>% 
+  ggplot(aes(x = burden_status,
+             fill = age_cat)) +
+  geom_col(aes(y = age_share)) +
+  scale_y_continuous(labels = scales::percent) +
+  coord_flip() +
+  labs(title = "Cost-burdened renters skew younger",
+       subtitle = "Share of individuals of each age by gross rent as a share of household income, 2018",
+       x = "",
+       y = "% of people in renter households",
+       fill = "Age group") +
+  terner_theme()
+
+
+```
+
+
+### **State-by-state numbers**
+
+```{r state_old_renters}
+state_old_renters <- 
+  renters %>% 
+  group_by(STATEFIP) %>% 
+  count(age_cat, wt = PERWT) %>% 
+  mutate(n_state = sum(n),
+         age_share = n / n_state) %>% 
+  ungroup() %>% 
+  mutate(STATEFIP = str_pad(STATEFIP, 2, side = "left", pad = "0")) %>% 
+  left_join(
+    distinct(select(tidycensus::fips_codes, state_code, state)),
+    by = c("STATEFIP" = "state_code"))
+
+OLDER <- c("50-59", "60-69", "70-79", "80-89", "90-99", "100+")
+natl_older_share <- sum(natl_age_table$share_of_renters[natl_age_table$age_cat %in% OLDER])
+
+state_old_renters %>% 
+  filter(age_cat %in% OLDER) %>% 
+  group_by(state) %>% 
+  summarize(age_share = sum(age_share)) %>% 
+  ggplot(aes(x = reorder(state, age_share),
+             y = age_share)) +
+  geom_col(fill = terner_blue) +
+  geom_hline(yintercept = natl_older_share) +
+  scale_y_continuous(label = scales::percent) +
+  labs(title = "A larger share of renters in the Northeast are older",
+    subtitle = "Share of individals aged 50+ living in renter households by state, 2018",
+       x = "", 
+       y = "Share") +
+  annotate(geom = "text",
+           x = 7, y = natl_older_share + .01,
+           label = "National share: 22%") +
+  terner_theme(axis.text.x = element_text(angle = 45, size = 9))
+```
+
+
+#### **Occupations**
+
+- need to sort based on ability to telework
+
+#### Additional ideas
+
+- type of health insurance coverage: employer vs state sponsored
 
 - look for multigenerational households, perhaps by # of rooms/bedrooms
 
 
-Technical notes:
-
-- this definition of renters excludes group quarters (OWNERSHP == 2 )
-
-### **State-by-state numbers**
-
-
 ### **Metro area numbers**
 
-- TO DO: build PUMA-MSA crosswalk
+- TO DO: check PUMA-MSA crosswalk
