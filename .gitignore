@@ -3,3 +3,8 @@
 *.cbk
 *.xml
 *.Rdata
+*.zip
+
+
+R/*.html
+old_model/

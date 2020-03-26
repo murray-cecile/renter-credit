@@ -8,8 +8,6 @@ libs <- c("here",
           "tidyverse",
           "magrittr",
           "purrr",
-          "knitr", 
-          "kableExtra",
           "janitor",
           "ipumsr",
           "haven")
@@ -68,8 +66,22 @@ data %<>%
                           levels = c("Under 25K", "25-50K", "50-75K",
                                      "75-100K", "100-150K", ">150K"))) 
 
-# filter to only renters
-renters <- data %>% filter(OWNERSHP == 2)
+# filter to only renters and add household cost burden
+renters <- data %>% 
+  filter(OWNERSHP == 2) %>% 
+  mutate(cost_burden = RENT / HHINCOME,
+         burden_status = case_when(
+           HHINCOME == 0 ~ "Zero income",
+           cost_burden < 0.3 ~ "Not burdened",
+           between(cost_burden, 0.3, 0.5) ~ "30-50% cost burdened",
+           between(cost_burden, 0.500001, 1) ~ "50-100% cost burdened",
+           cost_burden > 1 ~ "> 100% cost burdened"
+         ),
+         burden_status = factor(burden_status,
+                                levels = c("Zero income", "> 100% cost burdened",
+                                           "50-100% cost burdened",
+                                           "30-50% cost burdened",
+                                           "Not burdened")))
 
 #===============================================================================#
 # SAVE
