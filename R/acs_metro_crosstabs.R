@@ -53,11 +53,11 @@ allocate_puma_to_metro <- function(df, groups = c("age_cat")) {
     select(-stcofips) %>% 
     group_by_at(vars(one_of(c("cbsa_code", groups)))) %>% 
     summarize_all(~round(sum(.))) %>% 
-    left_join(select(puma_county_metro,
+    left_join(distinct(select(puma_county_metro,
                      cbsa_code,
                      cbsa_title,
-                     is_metro),
-              by = "cbsa_code") 
+                     is_metro)),
+              by = "cbsa_code")
 }
 
 
@@ -131,3 +131,130 @@ metro_renter_income <- renters %>%
   summarize(n_inc = sum(PERWT),
             sample_size = n()) %>% 
   allocate_puma_to_metro(groups = c("income_level"))
+
+#===============================================================================#
+# OCCUPATIONS
+#===============================================================================#
+
+occupations <- read.xlsx("data/acs/occupations.xlsx") %>%
+  select(-X5,
+         -acs_n,
+         -is_vulnerable) %>% 
+  mutate(occ_code = str_pad(occ_code, width = 4, side = "left", pad = "0"))
+
+metro_occp <- data %>% 
+  group_by(puma_id, OCC) %>% 
+  summarize(n_occ = sum(PERWT),
+            sample_size = n()) %>% 
+  allocate_puma_to_metro(groups = c("OCC")) %>% 
+  haven::zap_labels() %>% 
+  mutate(OCC = str_pad(OCC, width = 4, side = "left", pad = "0")) %>% 
+  left_join(occupations,
+            by = c("OCC" = "occ_code")) 
+
+# compute cost-burdened share
+metro_cost_burden_by_occp <- renters %>%
+  mutate(cost_burden = (RENT*12) / HHINCOME,
+         burden_status = case_when(
+           HHINCOME == 0 ~ "Zero income",
+           cost_burden < 0.3 ~ "Not burdened",
+           between(cost_burden, 0.3, 0.5) ~ "30-50% cost burdened",
+           between(cost_burden, 0.500001, 1) ~ "50-100% cost burdened",
+           cost_burden > 1 ~ "> 100% cost burdened"
+         ),
+         burden_status = factor(burden_status,
+                                levels = c("Zero income", "> 100% cost burdened",
+                                           "50-100% cost burdened",
+                                           "30-50% cost burdened",
+                                           "Not burdened"))) %>% 
+  group_by(puma_id, OCC, burden_status) %>% 
+  summarize(n_metro_occ_burden = sum(PERWT),
+            sample_size = n()) %>% 
+  allocate_puma_to_metro(groups = c("OCC", "burden_status")) %>% 
+  group_by(cbsa_code, OCC) %>% 
+  mutate(n_occ = sum(n_metro_occ_burden),
+         share_of_occ = n_metro_occ_burden / n_occ) %>% 
+  ungroup() %>% 
+  haven::zap_labels() %>% 
+  mutate(OCC = str_pad(OCC, width = 4, side = "left", pad = "0")) %>% 
+  left_join(occupations,
+            by = c("OCC" = "occ_code")) 
+
+
+# Try median rent
+metro_median_rent_by_occp <- renters %>% 
+  group_by(puma_id, OCC) %>% 
+  summarize(median_rent = median(RENTGRS, wt = PERWT),
+            median_pearnings = median(INCEARN, wt = PERWT),
+            sample_size = n()) %>% 
+  ungroup() %>% 
+  allocate_puma_to_metro(groups = c("OCC")) %>% 
+  ungroup() %>% 
+  haven::zap_labels() %>% 
+  mutate(OCC = str_pad(OCC, width = 4, side = "left", pad = "0")) %>% 
+  left_join(occupations,
+            by = c("OCC" = "occ_code")) 
+
+
+# try poverty level
+metro_pov_status_by_occp <- renters %>% 
+  group_by(puma_id, OCC, pov_level) %>% 
+  summarize(n_people = sum(wt = PERWT),
+            sample_size = n()) %>% 
+  ungroup() %>% 
+  allocate_puma_to_metro(groups = c("OCC", "pov_level")) %>% 
+  ungroup() %>% 
+  haven::zap_labels() %>% 
+  mutate(OCC = str_pad(OCC, width = 4, side = "left", pad = "0")) %>% 
+  left_join(occupations,
+            by = c("OCC" = "occ_code")) 
+
+#===============================================================================#
+# EXPORT
+#===============================================================================#
+
+
+README <- tibble(
+  "Sheet Name" = c("metro_age_table",
+                   "metro_renter_income",
+                   "metro_renter_poverty",
+                   "metro_renter_pov_by_lvl"),
+  "Description" = c("# of individuals and # renters by age group by MSA",
+                    "# of renters by age and poverty status by MSA",
+                    "# of renters by age group and cost burden by MSA",
+                    "# of renters by age and % of poverty by MSA"),
+  "Notes" = c("is_metro is a flag for metropolitan vs. micropolitan area",
+              "" ,
+              "Cost burden = gross rent * 12 / household income",
+              "n_pov is the # of people in a given poverty category across ages")
+)
+
+write_to_excel("data/tables/MSA_ACS_crosstabs.xlsx",
+               c("README",
+                 "metro_age_table",
+                 "metro_renter_income",
+                 "metro_renter_poverty",
+                 "metro_renter_pov_by_lvl"))
+
+
+README <- tibble(
+  "Sheet Name" = c("metro_occp",
+                   "metro_cost_burden_by_occp",
+                   # "metro_median_rent_by_occp",
+                   "metro_pov_status_by_occp"),
+  "Description" = c("# of individuals by occupation by MSA",
+                    "# of renters by occupation and household cost burden by MSA",
+                    # "Median household rent and personal earnings by occupation by MSA among renters",
+                    "# of renters by occupation by % of poverty by MSA"),
+  "Notes" = c("Universe for this is all people, not just renters, and is_metro is a flag for metropolitan vs. micropolitan area",
+              "Cost burden = gross rent * 12 / household income",
+              # "",
+              "Note this is household rent but personal earned income")
+)
+
+write_to_excel("data/tables/metro_occupations.xlsx",
+               c("README",
+                 "metro_occp",
+                 "metro_cost_burden_by_occp",
+                 # "metro_median_rent_by_occp",
+                 "metro_pov_status_by_occp"))
