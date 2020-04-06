@@ -40,9 +40,10 @@ geo_list <- bind_rows(top100, state_list) %>% arrange(NAME)
 # STATE
 #===============================================================================#
 
-state_data <- readxl::read_xlsx("../data/tables/state_ACS_crosstabs.xlsx",
-                                sheet = 2) %>% 
-  mutate(GEOID = str_pad(STATEFIP, width = 2, side = "left", pad = "0"))
+# state_data <- readxl::read_xlsx("../data/tables/state_ACS_crosstabs.xlsx",
+#                                 sheet = 2) %>% 
+#   mutate(GEOID = str_pad(STATEFIP, width = 2, side = "left", pad = "0"))
 
 # save(state_data, file = "covid_rent_burden/state_data.Rdata")
 
+load("st_sector_burdens.Rdata")

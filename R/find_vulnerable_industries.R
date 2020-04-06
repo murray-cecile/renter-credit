@@ -6,6 +6,7 @@
 
 libs <- c("here",
           "tidyverse",
+          "magrittr",
           "purrr",
           "janitor",
           "haven")
@@ -115,8 +116,7 @@ natl_industry <- full_join(
   suffix = c("_all", "_renters")
 )
 
-# function to compute # of people, renters, and shares of renters
-get_renter_crosstab <- function(df, subdf, groups = c("age_cat")) {
+get_renter_crosstab <- function(df, subdf, groups = c("")) {
   
   all <- df %>%
     group_by_at(vars(one_of(groups))) %>% 
@@ -126,22 +126,67 @@ get_renter_crosstab <- function(df, subdf, groups = c("age_cat")) {
     group_by_at(vars(one_of(groups))) %>% 
     summarize(n = sum(PERWT),
               sample_size = n())
-
+  
   crosstab <- full_join(all,
-                         subset,
-                         by = groups,
-                         suffix = c("_all", "_renters"))
+                        subset,
+                        by = groups,
+                        suffix = c("_all", "_renters")) %>% 
+    ungroup() %>% 
+    mutate(STATEFIP = str_pad(STATEFIP, width = 2, side = "left", pad = "0")) 
   return(crosstab)
 }
 
-natl_industry_cost_burden <- get_renter_crosstab(data,
-                                                 renters,
-                                                 groups = c("sector",
-                                                            "cost_burdened")) %>% 
-  group_by(sector) %>% 
-  mutate(n_sector_all = sum(n_all),
-         n_sector_renter = sum(n_renters),
-         burden_share_renters = n_renters / n_sector_renter)
+
+ st_sector_burdens <- get_renter_crosstab(data,
+                                             renters,
+                                             c("STATEFIP", 
+                                               "cost_burdened",
+                                               "sector")) %>% 
+  filter(!sector %in% c("NILF", "Unemployed or out of workforce or never worked"),
+         cost_burdened != "Zero household income") %>% 
+  group_by(STATEFIP, cost_burdened) %>% 
+  mutate(n_workers_by_burden = sum(n_renters),
+         sector_burden_share = n_renters / n_workers_by_burden) %>% 
+  ungroup() %>% 
+  group_by(STATEFIP, sector) %>% 
+  mutate(n_sector_workers = sum(n_all)) %>% 
+  ungroup() %>% 
+  group_by(STATEFIP) %>% 
+  mutate(n_workers = sum(n_all))
+
+  
+  
+
+
+# function to compute each sector's share of burdened workers
+compute_burdened_worker_share <- function(df, groups = c(""), geos = c("")) {
+  df %>%
+    group_by_at(vars(one_of(groups), one_of(geos))) %>% 
+    summarize(n_renters = sum(PERWT),
+              sample_size = n()) %>% 
+    filter(!sector %in% c("NILF", "Unemployed or out of workforce or never worked")) %>% 
+    group_by_at(vars(one_of(c("cost_burdened", geos)))) %>%  
+    mutate(n_burdened =  sum(n_renters),
+           share_of_burden = n_renters / n_burdened)
+}
+
+
+natl_sector_burdens <- compute_burdened_worker_share(renters,
+                                                     groups = c("sector",
+                                                                "cost_burdened"))
+
+# 
+# st_sector_burdens <- compute_burdened_worker_share(renters,
+#                                                    groups = c("sector",
+#                                                               "cost_burdened"),
+#                                                    geos = c("STATEFIP")) %>% 
+#   ungroup() %>% 
+#   mutate(STATEFIP = str_pad(STATEFIP, width = 2, side = "left", pad = "0"))
+
+# save(st_sector_burdens, file = "covid_rent_burden/st_sector_burdens.Rdata")
+
+
+# TO DO: collapse to PUMA then aggregate to metro
 
 #===============================================================================#
 # HOW CLOSE ARE PEOPLE TO BEING BURDENED?
