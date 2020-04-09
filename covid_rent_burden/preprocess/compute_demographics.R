@@ -94,40 +94,54 @@ save(st_vulnerable_shares,
 # COMPUTE AGE
 #===============================================================================#
 
-# compute counts of people by age for burdened vs. non-burdened vulnerable
-get_demo_by_vulnerable <- function(df, groups = c("")) {
-  df %>% 
-    filter(cost_burdened != "Zero household income") %>% 
+# compute counts of burdened vulnerable and all people by demographic
+get_demo_by_vulnerable <- function(renter_df, full_df, groups = c("")) {
+  
+  # get benchmark
+  benchmark <- full_df %>% 
+    group_by_at(vars(one_of(groups))) %>%
+    summarize(sample_size_all = n(),
+              group_total = sum(PERWT))
+  
+  # people in renter households with at least one vulnerable workers
+  renter_df %>% 
     mutate(is_vulnerable = if_else(sector %in% vulnerable_sectors, 1, 0)) %>% 
     group_by(SERIAL) %>% 
     mutate(vulnerable_ct = sum(is_vulnerable),
-           is_vulnerable = if_else(vulnerable_ct > 0, PERWT, 0)) %>% 
+           is_vulnerable_renter = if_else(vulnerable_ct > 0, PERWT, 0)) %>% 
     group_by_at(vars(one_of(groups))) %>%
     summarize(sample_size = n(),
-              total_in_group = sum(PERWT),
-              vulnerable_in_group = sum(is_vulnerable)) %>%
-    ungroup()
+              vulnerable_in_group = sum(is_vulnerable_renter)) %>%
+    ungroup() %>% 
+    left_join(benchmark, 
+              by = groups)
 }
 
 prep_for_plot <- function(df, groups = c("")) {
   df %>% 
     group_by_at(vars(one_of(groups))) %>%
-    mutate(group_total = sum(total_in_group),
+    mutate(total = sum(group_total),
            vulnerable_total = sum(vulnerable_in_group),
-           group_share = total_in_group / group_total,
+           group_share = group_total / total,
            vulnerable_share = vulnerable_in_group / vulnerable_total) %>% 
     pivot_longer(cols = c("group_share", "vulnerable_share")) 
 }
 
 st_age_by_burden <- renters %>% 
-  get_demo_by_vulnerable(c("STATEFIP", "age_cat")) %>% 
+  filter(cost_burdened != "Zero household income") %>% 
+  get_demo_by_vulnerable(data,
+                         c("STATEFIP", "age_cat")) %>% 
   prep_for_plot(c("STATEFIP"))
 
 save(st_age_by_burden,
      file = "covid_rent_burden/st_age_by_burden.Rdata")
 
+
+
 st_raceth_by_burden <- renters %>% 
-  get_demo_by_vulnerable(c("STATEFIP", "raceth")) %>% 
+  filter(cost_burdened != "Zero household income") %>% 
+  get_demo_by_vulnerable(data,
+                         c("STATEFIP", "raceth")) %>% 
   prep_for_plot(c("STATEFIP"))
 
 save(st_raceth_by_burden,

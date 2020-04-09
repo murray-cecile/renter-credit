@@ -19,6 +19,7 @@ ui <- fluidPage(
               selected = "California"),
   
   br(),
+  br(),
   
   p("PLACE XXX renter households are home to X% of the region's population of XXXXX."),
   
@@ -26,15 +27,27 @@ ui <- fluidPage(
   
   p("Adults in PLACE's rent-burdened households are more likely to work in industries vulnerable to job or income losses due to efforts to slow the spread of COVID-19."),
   
+  br(),
+  br(),
+  
   plotOutput("alreadyBurdenedWorkerPlot"),
+  
+  br(),
+  br(),
   
   p("But there are also households that weren't rent burdened before the pandemic, but may now be because of income or job losses due to COVID-19. XXX adults in non-burdened households work in vulnerable industries."),
   
   plotOutput("newlyVulnerableWorkerPlot"),
   
+  br(),
+  br(),
+  
   p("Between renter households that were already struggling and newly vulnerable, x% of renter households are vulnerable to job or income losses because of COVID-19."),
   
   plotOutput("totalVulnerableHouseholdsPlot"),
+  
+  br(),
+  br(),
   
   p("Each month, these vulnerable households pay a total of $xx in rent."),
   
@@ -47,16 +60,18 @@ ui <- fluidPage(
     )
   ),
   
+  br(),
+  br(),
   
   p("x% of PLACE's population live in these households, and they skew younger/xxxx than average for the region."),
   
   plotOutput("racethPlot"),
-  
+  br(),
   plotOutput("agePlot"),
   
   
   p("Source: IPUMS USA, University of Minnesota, www.ipums.org."),
   
-  p("Notes:")
+  p("Notes/methods: sample size > 10, zero-income households, cost burden definition, race/ethnicity definition")
   
 )

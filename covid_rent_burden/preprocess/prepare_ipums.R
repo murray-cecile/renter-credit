@@ -80,7 +80,7 @@ data %<>%
                      levels = c("Under 18", "18-24", "25-54",
                                 "55-64", "65+")),
     raceth = case_when(
-      RACE == 1 & HISPAN %in% c(0, 9) ~ "White non-Hispanic",
+      RACE == 1 & HISPAN %in% c(0, 9) ~ "White",
       RACE == 2 & HISPAN %in% c(0, 9) ~ "Black",
       RACE == 3 & HISPAN %in% c(0, 9) ~ "Other",
       between(RACE, 4, 6) & HISPAN %in% c(0, 9) ~ "Asian",

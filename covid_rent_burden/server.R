@@ -158,7 +158,7 @@ server <- function(input, output) {
                  y = median_rent)) +
       geom_col(fill = terner_blue) +
       scale_y_continuous(label = scales::dollar) +
-      labs(title = "TITLE",
+      labs(title = "Vulnerable households in PLACE may struggle to make rent",
            subtitle = "Median rent in households with at least one vulnerable worker, 2018",
            x = "",
            y = "Median monthly gross rent ($)") +
@@ -173,8 +173,8 @@ server <- function(input, output) {
                  y = total_rent)) +
       geom_col(fill = terner_blue) +
       scale_y_continuous(label = scales::dollar) +
-      labs(title = "TITLE",
-           subtitle = "Total rent in households with at least one vulnerable worker, 2018",
+      labs(title = "Rent from vulnerable households in PLACE add up to a substantial amount",
+           subtitle = "Total monthly rent in households with at least one vulnerable worker, 2018",
            x = "",
            y = "Total gross rent ($)") +
       terner_theme()
@@ -190,17 +190,18 @@ server <- function(input, output) {
       scale_y_continuous(label = scales::percent) +
       scale_fill_manual(values = c("vulnerable_share" = terner_blue,
                                    "group_share" = terner_gold)) +
-      labs(title = "TITLE",
-           subtitle = "People in vulnerable households vs. all renter households by age",
+      labs(title = "Young people are overrepresented among vulnerable renters in PLACE",
+           subtitle = "Age distribution of people in vulnerable renter households vs. all people",
            x = "Age group",
-           y = "% of people in renter households",
-           caption = "Note: group_share means all people in renter hholds in age category") +
+           y = "% of people",
+           caption = "Note: group_share = people in age category / all people") +
       terner_theme()
   })
   
   output$racethPlot <- renderPlot({
     
-    geo_raceth() %>% 
+    geo_raceth_by_burden %>% 
+    # geo_raceth() %>% 
       ggplot(aes(x = raceth,
                  y = value, 
                  fill = name)) +
@@ -208,11 +209,11 @@ server <- function(input, output) {
       scale_y_continuous(label = scales::percent) +
       scale_fill_manual(values = c("vulnerable_share" = terner_blue,
                                    "group_share" = terner_gold)) +
-      labs(title = "TITLE",
-           subtitle = "People in vulnerable households vs. all renter households by race/ethnicity",
+      labs(title = "Vulnerable renters in PLACE are more diverse than the general population",
+           subtitle = "Distribution of people by race/ethnic group in vulnerable renter households vs. all people",
            x = "Race/ethnic group",
-           y = "% of people in renter households",
-           caption = "Note: group_share means all people in renter hholds in race/ethnicity category") +
+           y = "% of people",
+           caption = "Note: group_share = people in race/ethnic group / all people") +
       terner_theme()
   })
 }

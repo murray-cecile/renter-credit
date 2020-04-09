@@ -17,12 +17,15 @@ terner_theme <- function(...) {
         panel.grid.major = element_line(color = "gray75",
                                         size = rel(0.75),
                                         linetype = "dotted"),
-        text = element_text(family = "Lato", size = 11),
-        axis.text = element_text(size = 11),
-        legend.text = element_text(size = 10),
-        plot.title = element_text(size = 14),
-        plot.subtitle = element_text(size = 12),
+        text = element_text(family = "Lato",
+                            size = 16),
+        title = element_text(family = "Lato",
+                            size = 24),
+        # axis.text = element_text(size = 12),
+        # legend.text = element_text(size = 12),
+        plot.subtitle = element_text(size = 18),
         axis.ticks.x = element_blank(),
-        legend.background = element_blank()) +
+        legend.background = element_blank(),
+        plot.caption = element_text(hjust = 0)) +
     theme(...)
 }
