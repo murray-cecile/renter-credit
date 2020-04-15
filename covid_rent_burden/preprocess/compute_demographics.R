@@ -4,7 +4,7 @@
 # Cecile Murray
 #===============================================================================#
 
-
+# packages
 libs <- c("here",
           "tidyverse",
           "purrr",
@@ -14,10 +14,15 @@ libs <- c("here",
           "haven")
 lapply(libs, library, character.only = TRUE)
 
-
+# data
 load("data/acs/prepared_data_2018.Rdata")
 load("data/acs/renters_2018.Rdata")
+puma_xwalk <- read_csv("data/geo/puma_county_metro_xwalk.csv")
 
+# functions
+source("utils.R")
+
+# define vulnerable sectors
 vulnerable_sectors <- c("Non-essential retail",
                         "Food service",
                         "Mining",
@@ -25,7 +30,6 @@ vulnerable_sectors <- c("Non-essential retail",
                         "Non-essential manufacturing",
                         "Non-essential travel/transportation",
                         "Other services")
-
 
 #===============================================================================#
 # TAG VULNERABLE HOUSEHOLDS
@@ -52,20 +56,8 @@ vulnerable_renters <- renters %>%
 # # OF BURDENED AND NEWLY VULNERABLE HHOLDS / # RENTER HOUSEHOLDS
 #===============================================================================#
 
-st_vulnerable_shares <- renters %>% 
-  select(SERIAL, HHWT, STATEFIP, sector, cost_burdened) %>% 
-  left_join(vulnerable_renters,
-            by = "SERIAL") %>%  
-  distinct(SERIAL, HHWT, STATEFIP, cost_burdened, is_vulnerable) %>% 
-  group_by(STATEFIP, cost_burdened, is_vulnerable) %>% 
-  summarize(sample_size = n(),
-            n_burden_vulnerable = sum(is_vulnerable, wt = HHWT)) %>% 
-  ungroup() %>% 
-  group_by(STATEFIP) %>% 
-  mutate(n_households = sum(n_burden_vulnerable),
-         share_vulnerable = n_burden_vulnerable / n_households) %>% 
-  filter(cost_burdened != "Zero household income")
-
+# function to compute share of burdened and not-burdened households with at
+# least one worker in a vulnerable sector
 compute_vulnerable_shares_by_geo <- function(df, geo) {
   df %>% 
     select(SERIAL, HHWT, one_of(c(geo)), sector, cost_burdened) %>% 
@@ -76,19 +68,48 @@ compute_vulnerable_shares_by_geo <- function(df, geo) {
                               geo,
                               "cost_burdened",
                               "is_vulnerable")))) %>% 
-    group_by_at(vars(one_of(c(geo, cost_burdened, is_vulnerable)))) %>% 
-    summarize(sample_size = n(),
+    group_by_at(vars(one_of(c(geo, "cost_burdened", "is_vulnerable")))) %>% 
+    summarize(sample_size_burden_vulnerable = n(),
               n_burden_vulnerable = sum(is_vulnerable, wt = HHWT)) %>% 
     ungroup() %>% 
-    group_by(!!geo) %>% 
+    group_by_at(vars(one_of(geo))) %>% 
     mutate(n_households = sum(n_burden_vulnerable),
            share_vulnerable = n_burden_vulnerable / n_households) %>% 
     filter(cost_burdened != "Zero household income")
 }
 
+us_vulnerable_shares <- renters %>% 
+  mutate("GEOID" = "00") %>% 
+  compute_vulnerable_shares_by_geo("GEOID") %>% 
+  mutate(NAME = "United States")
 
-save(st_vulnerable_shares, 
-     file = "covid_rent_burden/st_vulnerable_shares.Rdata")
+st_vulnerable_shares <- compute_vulnerable_shares_by_geo(renters, "STATEFIP") %>% 
+  left_join(distinct(tidycensus::fips_codes, state_code, state_name),
+            by = c("STATEFIP" = "state_code")) %>% 
+  dplyr::rename("GEOID" = "STATEFIP",
+                "NAME" = "state_name")
+
+metro_vulnerable_shares <- renters %>% 
+  compute_vulnerable_shares_by_geo("puma_id") %>% 
+  allocate_puma_to_metro(c("cost_burdened", "is_vulnerable")) %>% 
+  mutate(share_vulnerable = n_burden_vulnerable / n_households) %>% 
+  left_join(distinct(puma_xwalk, cbsa_code, cbsa_title),
+            by = "cbsa_code") %>% 
+  dplyr::rename("GEOID" = "cbsa_code",
+                "NAME" = "cbsa_title") %>% 
+  ungroup()
+
+# stitch together tables
+geo_vulnerable_shares <- bind_rows(
+  us_vulnerable_shares,
+  st_vulnerable_shares,
+  mutate(metro_vulnerable_shares, GEOID = as.character(GEOID))
+) %>% 
+  select(GEOID, NAME, everything())
+
+
+save(geo_vulnerable_shares, 
+     file = "covid_rent_burden/data/geo_vulnerable_shares.Rdata")
 
 #===============================================================================#
 # COMPUTE AGE
@@ -127,22 +148,98 @@ prep_for_plot <- function(df, groups = c("")) {
     pivot_longer(cols = c("group_share", "vulnerable_share")) 
 }
 
+
+us_age_by_burden <- renters %>% 
+  mutate(GEOID = "00") %>% 
+  filter(cost_burdened != "Zero household income") %>% 
+  get_demo_by_vulnerable(mutate(data, GEOID = "00"),
+                         c("GEOID", "age_cat")) %>% 
+  prep_for_plot(c("GEOID")) %>% 
+  mutate(NAME = "United States")
+
 st_age_by_burden <- renters %>% 
   filter(cost_burdened != "Zero household income") %>% 
   get_demo_by_vulnerable(data,
                          c("STATEFIP", "age_cat")) %>% 
-  prep_for_plot(c("STATEFIP"))
+  prep_for_plot(c("STATEFIP")) %>% 
+  convert_state_code()
 
-save(st_age_by_burden,
-     file = "covid_rent_burden/st_age_by_burden.Rdata")
+metro_age_by_burden <- renters %>% 
+  filter(cost_burdened != "Zero household income") %>% 
+  get_demo_by_vulnerable(data,
+                         c("puma_id", "age_cat")) %>% 
+  allocate_puma_to_metro(c("age_cat")) %>% 
+  group_by(cbsa_code, age_cat) %>% 
+  mutate(group_total = sum(vulnerable_in_group)) %>% 
+  prep_for_plot(c("cbsa_code")) %>% 
+  convert_cbsa_code()
+
+geo_age_by_burden <- bind_rows(
+  us_age_by_burden,
+  st_age_by_burden,
+  metro_age_by_burden
+) %>% 
+  select(GEOID, NAME, everything())
 
 
+save(geo_age_by_burden,
+     file = "covid_rent_burden/data/geo_age_by_burden.Rdata")
+
+#===============================================================================#
+# RACE/ETHNICITY
+#===============================================================================#
+
+
+us_raceth_by_burden <- renters %>% 
+  mutate(GEOID = "00") %>% 
+  filter(cost_burdened != "Zero household income") %>% 
+  get_demo_by_vulnerable(mutate(data, GEOID = "00"),
+                         c("GEOID", "raceth")) %>% 
+  prep_for_plot(c("GEOID")) %>% 
+  mutate(NAME = "United States")
 
 st_raceth_by_burden <- renters %>% 
   filter(cost_burdened != "Zero household income") %>% 
   get_demo_by_vulnerable(data,
                          c("STATEFIP", "raceth")) %>% 
-  prep_for_plot(c("STATEFIP"))
+  prep_for_plot(c("STATEFIP")) %>% 
+  convert_state_code()
 
-save(st_raceth_by_burden,
-     file = "covid_rent_burden/st_raceth_by_burden.Rdata")
+metro_raceth_by_burden <- renters %>% 
+  filter(cost_burdened != "Zero household income") %>% 
+  get_demo_by_vulnerable(data,
+                         c("puma_id", "raceth")) %>% 
+  allocate_puma_to_metro(c("raceth")) %>% 
+  group_by(cbsa_code, raceth) %>% 
+  mutate(group_total = sum(vulnerable_in_group)) %>% 
+  prep_for_plot(c("cbsa_code")) %>% 
+  convert_cbsa_code()
+
+geo_raceth_by_burden <- bind_rows(
+  us_raceth_by_burden,
+  st_raceth_by_burden,
+  metro_raceth_by_burden
+) %>% 
+  select(GEOID, NAME, everything())
+
+
+save(geo_raceth_by_burden,
+     file = "covid_rent_burden/data/geo_raceth_by_burden.Rdata")
+
+#===============================================================================#
+# EXCEL EXPORT
+#===============================================================================#
+
+README <- tibble(
+  "Sheet names" = c("geo_age_by_burden",
+                    "geo_raceth_by_burden"),
+  "Description" = c("Age distribution by household cost burden and presence of vulnerable worker",
+                    "Race/ethnicity makeup by household cost burden and presence of vulnerable worker"),
+  "Notes" = c("vulnerable_share is what the race/ethnicity chart actually visualizes",
+              "group_share is the population benchmark")
+)
+
+write_to_excel("data/tables/demographics_backup_data.xlsx",
+               c("README",
+                 "geo_age_by_burden",
+                 "geo_raceth_by_burden"))

@@ -11,16 +11,16 @@ library(tidycensus)
 # DATA LOADING
 #===============================================================================#
 
-load("data/geo_list.Rdata")
-load("data/st_burden_by_sector.Rdata")
-load("data/st_vulnerable_shares.Rdata")
-load("data/st_rent_by_burden.Rdata")
-load("data/st_age_by_burden.Rdata")
-load("data/st_raceth_by_burden.Rdata")
+load("data/industry_burden_table.Rdata")
+load("data/geo_vulnerable_shares.Rdata")
+load("data/geo_rent_by_burden.Rdata")
+load("data/geo_age_by_burden.Rdata")
+load("data/geo_raceth_by_burden.Rdata")
 
-# for right now, just do states
-geo_list <- geo_list %>% 
-  filter(!str_detect(NAME, "Metro Area"))
+# create list of places for dropdown menu
+geo_list <- geo_vulnerable_shares %>% 
+  distinct(GEOID, NAME) %>% 
+  filter(as.numeric(GEOID) < 60)
 
 #===============================================================================#
 # DEFINE VULNERABLE SECTORS

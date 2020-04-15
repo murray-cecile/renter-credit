@@ -8,25 +8,24 @@
 ui <- fluidPage(
   
   # Application title
-  titlePanel("Vulnerable renter dashboard"),
+  titlePanel("Renters at Risk: Households Likely to Be Impacted by Efforts to Flatten the Curve"),
   
-  p("Explanatory text for what this tool does + Terner attribution"),
+  p("... This tool allows user to explore number of renter households likely facing near-term economic impacts of sheltering in place and the scale of the costs required to shore up their rents"),
   
-  # select box for metro names
+  # select box for place
   selectInput("geo_name",
               label = "Choose a geographic area",
-              choices = sort(unique(geo_list$NAME)),
-              selected = "California"),
+              choices = geo_list$NAME,
+              selected = "United States"),
   
   br(),
   br(),
   
-  p("PLACE XXX renter households are home to X% of the region's population of XXXXX."),
+  textOutput("renterHHCountText"),
+  br(),
+  textOutput("vulnerableWorkerText"),
   
-  p("x% of these households were already rent burdened before the pandemic, meaning they pay more than 30% of their income on rent."),
-  
-  p("Adults in PLACE's rent-burdened households are more likely to work in industries vulnerable to job or income losses due to efforts to slow the spread of COVID-19."),
-  
+
   br(),
   br(),
   
@@ -35,7 +34,7 @@ ui <- fluidPage(
   br(),
   br(),
   
-  p("But there are also households that weren't rent burdened before the pandemic, but may now be because of income or job losses due to COVID-19. XXX adults in non-burdened households work in vulnerable industries."),
+  textOutput("shareVulnerableText"),
   
   plotOutput("newlyVulnerableWorkerPlot"),
   
@@ -63,7 +62,7 @@ ui <- fluidPage(
   br(),
   br(),
   
-  p("x% of PLACE's population live in these households, and they skew younger/xxxx than average for the region."),
+  p("Who lives in these at-risk renter households?"),
   
   plotOutput("racethPlot"),
   br(),

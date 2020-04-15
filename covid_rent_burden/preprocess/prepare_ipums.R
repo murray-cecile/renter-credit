@@ -70,12 +70,14 @@ data %<>%
          INCTOT, INCWAGE, INCBUS00, INCEARN, POVERTY) %>% 
   mutate(
     STATEFIP = str_pad(STATEFIP, width = 2, side = "left", pad = 0),
-    age_cat = case_when(
-      AGE < 18 ~ "Under 18",
-      between(AGE, 18, 24) ~ "18-24",
-      between(AGE, 25, 54) ~ "25-54",
-      between(AGE, 55, 64) ~ "55-64",
-      AGE >= 65 ~ "65+"),
+    PUMA = str_pad(PUMA, width = 5, side = "left", pad = "0"),
+    puma_id = paste0(STATEFIP, PUMA),
+      age_cat = case_when(
+        AGE < 18 ~ "Under 18",
+        between(AGE, 18, 24) ~ "18-24",
+        between(AGE, 25, 54) ~ "25-54",
+        between(AGE, 55, 64) ~ "55-64",
+        AGE >= 65 ~ "65+"),
     age_cat = factor(age_cat,
                      levels = c("Under 18", "18-24", "25-54",
                                 "55-64", "65+")),
