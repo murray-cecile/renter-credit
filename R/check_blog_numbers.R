@@ -4,12 +4,6 @@
 # Cecile Murray
 #===============================================================================#
 
-#===============================================================================#
-# COMPUTE AGE AND RACE DEMOGRAPHICS FOR VULNERABLE
-#
-# Cecile Murray
-#===============================================================================#
-
 # packages
 libs <- c("here",
           "tidyverse",
@@ -17,7 +11,8 @@ libs <- c("here",
           "knitr", 
           "kableExtra",
           "janitor",
-          "haven")
+          "haven",
+          "tidycensus")
 lapply(libs, library, character.only = TRUE)
 
 # data
@@ -88,11 +83,13 @@ renters %>%
 renters %>% 
   left_join(vulnerable_renters, 
             by = "SERIAL") %>% 
-  filter(is_vulnerable == 1) %>% 
+  filter(is_vulnerable == 1,
+         cost_burdened != "Zero household income") %>% 
   distinct(SERIAL, STATEFIP, HHWT) %>% 
-  mutate(in_CA = if_else(STATEFIP == c("06", "48", "36", "12"), TRUE, FALSE)) %>% 
+  mutate(in_CA = if_else(STATEFIP %in% c("06", "48", "36", "12"), TRUE, FALSE)) %>% 
   group_by(STATEFIP) %>% 
-  summarize(n = sum(HHWT)) #%>% 
+  summarize(n = sum(HHWT)) %>% 
+  View()
   # adorn_percentages(denominator = "col")
 
 renters %>% 

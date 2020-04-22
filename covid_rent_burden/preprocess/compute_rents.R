@@ -23,6 +23,7 @@ source("covid_rent_burden/preprocess/utils.R")
 # PUMA-metro crosswalk
 puma_xwalk <- read_csv("data/geo/puma_county_metro_xwalk.csv") 
 
+# create version of crosswalk without county aggregation step
 puma_cbsa_only <- puma_xwalk %>%  
   group_by(puma_id, cbsa_code) %>% 
   summarize(cbsa_title = first(cbsa_title),
@@ -61,7 +62,7 @@ get_rent_by_burden <- function(df, groups = c("")) {
     ungroup() 
 }
 
-# calculate med rent, total rent, med hhinc for all vul 
+# calculate med rent, total rent, med hhinc for all vulnerable
 us_rent <- renters %>% 
   get_rent_by_burden() %>% 
   mutate("GEOID" = "00",
@@ -85,7 +86,7 @@ us_table <- bind_rows(
          cost_burdened,
          everything())
 
-
+# repeat the above exercise but for states
 st_rent <- renters %>% 
   get_rent_by_burden(c("STATEFIP")) %>% 
   convert_state_code() %>% 

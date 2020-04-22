@@ -35,6 +35,9 @@ vulnerable_sectors <- c("Non-essential retail",
 # TAG VULNERABLE HOUSEHOLDS
 #===============================================================================#
 
+# these are households (all, renter) with at least one worker in a vulnerable
+# sector
+
 vulnerable_hholds <- data %>% 
   select(SERIAL, PERNUM, sector) %>% 
   mutate(is_vulnerable = if_else(sector %in% vulnerable_sectors, 1, 0)) %>% 
@@ -78,13 +81,18 @@ compute_vulnerable_shares_by_geo <- function(df, geo) {
     filter(cost_burdened != "Zero household income")
 }
 
+# compute share of vulnerable renters for US, states, and metros
+
 us_vulnerable_shares <- renters %>% 
   mutate("GEOID" = "00") %>% 
   compute_vulnerable_shares_by_geo("GEOID") %>% 
   mutate(NAME = "United States")
 
-st_vulnerable_shares <- compute_vulnerable_shares_by_geo(renters, "STATEFIP") %>% 
-  left_join(distinct(tidycensus::fips_codes, state_code, state_name),
+st_vulnerable_shares <- renters %>% 
+  compute_vulnerable_shares_by_geo("STATEFIP") %>% 
+  left_join(distinct(tidycensus::fips_codes,
+                     state_code,
+                     state_name),
             by = c("STATEFIP" = "state_code")) %>% 
   dplyr::rename("GEOID" = "STATEFIP",
                 "NAME" = "state_name")
@@ -93,13 +101,15 @@ metro_vulnerable_shares <- renters %>%
   compute_vulnerable_shares_by_geo("puma_id") %>% 
   allocate_puma_to_metro(c("cost_burdened", "is_vulnerable")) %>% 
   mutate(share_vulnerable = n_burden_vulnerable / n_households) %>% 
-  left_join(distinct(puma_xwalk, cbsa_code, cbsa_title),
+  left_join(distinct(puma_xwalk,
+                     cbsa_code,
+                     cbsa_title),
             by = "cbsa_code") %>% 
   dplyr::rename("GEOID" = "cbsa_code",
                 "NAME" = "cbsa_title") %>% 
   ungroup()
 
-# stitch together tables
+# stitch together tables from each geography
 geo_vulnerable_shares <- bind_rows(
   us_vulnerable_shares,
   st_vulnerable_shares,
@@ -115,16 +125,16 @@ save(geo_vulnerable_shares,
 # COMPUTE AGE
 #===============================================================================#
 
-# compute counts of burdened vulnerable and all people by demographic
+# compute counts of vulnerable and all people by demographic category
 get_demo_by_vulnerable <- function(renter_df, full_df, groups = c("")) {
   
-  # get benchmark
+  # get benchmark from full population (not just renters)
   benchmark <- full_df %>% 
     group_by_at(vars(one_of(groups))) %>%
     summarize(sample_size_all = n(),
               group_total = sum(PERWT))
   
-  # people in renter households with at least one vulnerable workers
+  # people in renter households with at least one vulnerable worker
   renter_df %>% 
     mutate(is_vulnerable = if_else(sector %in% vulnerable_sectors, 1, 0)) %>% 
     group_by(SERIAL) %>% 
@@ -138,6 +148,7 @@ get_demo_by_vulnerable <- function(renter_df, full_df, groups = c("")) {
               by = groups)
 }
 
+# function to pivot and compute shares
 prep_for_plot <- function(df, groups = c("")) {
   df %>% 
     group_by_at(vars(one_of(groups))) %>%
@@ -149,7 +160,8 @@ prep_for_plot <- function(df, groups = c("")) {
 }
 
 
-us_age_by_burden <- renters %>% 
+# compute age and vulnerability for US, states, metros
+us_age_by_vulnerable <- renters %>% 
   mutate(GEOID = "00") %>% 
   filter(cost_burdened != "Zero household income") %>% 
   get_demo_by_vulnerable(mutate(data, GEOID = "00"),
@@ -157,14 +169,14 @@ us_age_by_burden <- renters %>%
   prep_for_plot(c("GEOID")) %>% 
   mutate(NAME = "United States")
 
-st_age_by_burden <- renters %>% 
+st_age_by_vulnerable <- renters %>% 
   filter(cost_burdened != "Zero household income") %>% 
   get_demo_by_vulnerable(data,
                          c("STATEFIP", "age_cat")) %>% 
   prep_for_plot(c("STATEFIP")) %>% 
   convert_state_code()
 
-metro_age_by_burden <- renters %>% 
+metro_age_by_vulnerable <- renters %>% 
   filter(cost_burdened != "Zero household income") %>% 
   get_demo_by_vulnerable(data,
                          c("puma_id", "age_cat")) %>% 
@@ -174,10 +186,11 @@ metro_age_by_burden <- renters %>%
   prep_for_plot(c("cbsa_code")) %>% 
   convert_cbsa_code()
 
+# bind all geos together (name is old but reflects what's in shiny code)
 geo_age_by_burden <- bind_rows(
-  us_age_by_burden,
-  st_age_by_burden,
-  metro_age_by_burden
+  us_age_by_vulnerable,
+  st_age_by_vulnerable,
+  metro_age_by_vulnerable
 ) %>% 
   select(GEOID, NAME, everything())
 
@@ -189,8 +202,9 @@ save(geo_age_by_burden,
 # RACE/ETHNICITY
 #===============================================================================#
 
+# repeat same exercise by race/ethnicity 
 
-us_raceth_by_burden <- renters %>% 
+us_raceth_by_vulnerable <- renters %>% 
   mutate(GEOID = "00") %>% 
   filter(cost_burdened != "Zero household income") %>% 
   get_demo_by_vulnerable(mutate(data, GEOID = "00"),
@@ -198,14 +212,14 @@ us_raceth_by_burden <- renters %>%
   prep_for_plot(c("GEOID")) %>% 
   mutate(NAME = "United States")
 
-st_raceth_by_burden <- renters %>% 
+st_raceth_by_vulnerable <- renters %>% 
   filter(cost_burdened != "Zero household income") %>% 
   get_demo_by_vulnerable(data,
                          c("STATEFIP", "raceth")) %>% 
   prep_for_plot(c("STATEFIP")) %>% 
   convert_state_code()
 
-metro_raceth_by_burden <- renters %>% 
+metro_raceth_by_vulnerable <- renters %>% 
   filter(cost_burdened != "Zero household income") %>% 
   get_demo_by_vulnerable(data,
                          c("puma_id", "raceth")) %>% 
@@ -216,9 +230,9 @@ metro_raceth_by_burden <- renters %>%
   convert_cbsa_code()
 
 geo_raceth_by_burden <- bind_rows(
-  us_raceth_by_burden,
-  st_raceth_by_burden,
-  metro_raceth_by_burden
+  us_raceth_by_vulnerable,
+  st_raceth_by_vulnerable,
+  metro_raceth_by_vulnerable
 ) %>% 
   select(GEOID, NAME, everything())
 
@@ -227,7 +241,7 @@ save(geo_raceth_by_burden,
      file = "covid_rent_burden/data/geo_raceth_by_burden.Rdata")
 
 #===============================================================================#
-# TOTAL # OF HOUSEHOLDS BY GEOGRAPHY
+# COMPUTE TOTAL # OF HOUSEHOLDS BY GEOGRAPHY
 #===============================================================================#
 
 us_hholds <- vulnerable_hholds %>% 

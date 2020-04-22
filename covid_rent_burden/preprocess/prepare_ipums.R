@@ -132,13 +132,6 @@ renters <- data %>%
            (RENTGRS * 12) / HHINCOME <= 0.3 ~ "Not burdened",
            HHINCOME == 0 ~ "Zero household income"))
 
-
-# renters %>% 
-#   mutate(zero_hhinc = if_else(HHINCOME <= 0 & AGE > 17, 1, 0),) %>% 
-#   distinct(SERIAL, HHWT, HHINCOME, zero_hhinc) %>% 
-#   dplyr::count(zero_hhinc, wt = HHWT) %>% 
-#   adorn_percentages(denominator = "col")
-
 #===============================================================================#
 # SAVE
 #===============================================================================#
