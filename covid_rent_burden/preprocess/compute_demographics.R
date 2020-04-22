@@ -20,7 +20,7 @@ load("data/acs/renters_2018.Rdata")
 puma_xwalk <- read_csv("data/geo/puma_county_metro_xwalk.csv")
 
 # functions
-source("utils.R")
+source("covid_rent_burden/preprocess/utils.R")
 
 # define vulnerable sectors
 vulnerable_sectors <- c("Non-essential retail",
@@ -225,6 +225,43 @@ geo_raceth_by_burden <- bind_rows(
 
 save(geo_raceth_by_burden,
      file = "covid_rent_burden/data/geo_raceth_by_burden.Rdata")
+
+#===============================================================================#
+# TOTAL # OF HOUSEHOLDS BY GEOGRAPHY
+#===============================================================================#
+
+us_hholds <- vulnerable_hholds %>% 
+  left_join(data,
+            by = "SERIAL") %>% 
+  summarize(sample_size = n(),
+            n_households = sum(HHWT)) %>% 
+  mutate(GEOID = "00",
+         NAME = "United States")
+
+st_hholds <- vulnerable_hholds %>% 
+  left_join(data,
+            by = "SERIAL") %>% 
+  group_by(STATEFIP) %>% 
+  summarize(sample_size = n(),
+            n_households = sum(HHWT)) %>% 
+  convert_state_code()
+
+metro_hholds <- vulnerable_hholds %>% 
+  left_join(data,
+            by = "SERIAL") %>% 
+  group_by(puma_id) %>% 
+  summarize(sample_size = n(),
+            n_households = sum(HHWT)) %>% 
+  allocate_puma_to_metro() %>% 
+  convert_cbsa_code()
+
+hhold_table <- bind_rows(
+  us_hholds,
+  st_hholds,
+  metro_hholds
+)
+
+# write_excel_csv(hhold_table, path = "data/tables/household_counts.csv")
 
 #===============================================================================#
 # EXCEL EXPORT

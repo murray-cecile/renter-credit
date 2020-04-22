@@ -5,8 +5,8 @@ account: murray-cecile
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 2045707
-bundleId: 2978359
+bundleId: 3017908
 url: https://murray-cecile.shinyapps.io/covid_rent_burden/
-when: 1586218463.51882
+when: 1586968878.1288
 asMultiple: FALSE
 asStatic: FALSE

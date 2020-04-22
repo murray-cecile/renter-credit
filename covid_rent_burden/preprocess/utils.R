@@ -4,6 +4,7 @@
 # Cecile Murray
 #===============================================================================#
 
+library(openxlsx)
 
 # function to allocate PUMAs to metros
 allocate_puma_to_metro <- function(df, groups = c("")) {

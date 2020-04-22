@@ -62,7 +62,7 @@ us_industry <- data %>%
 
 # total burden counts, excluding zero-income hholds
 us_burden <- renters %>% 
-  filter(cost_burdened != "Zero household income") %>% 
+  # filter(cost_burdened != "Zero household income") %>%
   get_worker_crosstab(c("cost_burdened")) %>% 
   ungroup() %>% 
   dplyr::rename("n_burdened" = "n",
