@@ -30,6 +30,8 @@ puma_cbsa_only <- puma_xwalk %>%
             afact = sum(afact)) %>% 
   ungroup()
 
+set.seed(2020)
+
 vulnerable_sectors <- c("Non-essential retail",
                         "Food service",
                         "Mining",
@@ -111,6 +113,9 @@ st_table <- bind_rows(
 # have to do a custom version for the median rent at metro level
 # idea is to randomly select hholds for pumas that are split
 # note that totals and sample sizes match other method
+
+set.seed(2020) # doing this again to be sure!
+
 allocated_renters <- renters %>% 
   mutate(is_vulnerable = if_else(sector %in% vulnerable_sectors, 1, 0)) %>% 
   group_by(SERIAL) %>% 
@@ -129,6 +134,7 @@ allocated_renters <- renters %>%
   mutate(allocate = if_else(runif(1) < afact, TRUE, FALSE)) %>%
   filter(allocate) 
 
+# get 
 metro_rent <- allocated_renters %>% 
   select(-puma_id) %>% 
   group_by(cbsa_code, is_vulnerable) %>% 
@@ -139,7 +145,7 @@ metro_rent <- allocated_renters %>%
             median_hhinc = weightedMedian(HHINCOME, w = HHWT)) %>% 
   ungroup() %>% 
   convert_cbsa_code() %>% 
-  mutate(cost_burdened = "all vulnerable")
+  mutate(cost_burdened = "burdened + not")
 
 metro_rent_by_burden <- allocated_renters %>% 
   select(-puma_id) %>% 
