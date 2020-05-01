@@ -104,3 +104,11 @@ renters %>%
   mutate(n = sum(n_st)) %>% 
   mutate(share = scales::number(n_st / n)) %>% 
   View()
+
+#===============================================================================#
+# METROS
+#===============================================================================#
+
+# total number of people in renter hholds, and vulnerable workers in renter hholds
+renters %>% 
+  filter()

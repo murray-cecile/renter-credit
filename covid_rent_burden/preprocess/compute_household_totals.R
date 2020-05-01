@@ -138,7 +138,24 @@ vulnerable_hholds <- data %>%
   count_vulnerable_workers_by_hh() 
 
 vulnerable_renters <- renters %>% 
+  filter(cost_burdened != "Zero household income") %>% 
   count_vulnerable_workers_by_hh()
+
+# vulnerable_hholds %>% 
+#   filter(vulnerable_ct > 0) %>% 
+#   left_join(data, by = "SERIAL") %>% 
+#   group_by(STATEFIP) %>% 
+#   summarize(
+#     sample_size = n(),
+#     n_households = sum(HHWT.x)
+#   ) %>% 
+#   left_join(st_hholds,
+#             by = c("STATEFIP" = "GEOID"),
+#             suffix = c("_wrong", "_correct")) %>% 
+#   mutate(diff = n_households_correct - n_households_wrong,
+#          diff_pct = diff / n_households_wrong) %>% 
+#   View()
+
 
 #===============================================================================#
 # TALLY RENTER HOUSEHOLDS BY # OF AFFECTED WORKERS
@@ -147,6 +164,7 @@ vulnerable_renters <- renters %>%
 # count households by # affected workers by geography 
 tally_hh_by_num_vulnerable <- function(df, groups = c("")) {
   df %>% 
+    distinct() %>% 
     group_by_at(vars(one_of(c("vulnerable_ct", groups)))) %>% 
     summarize(
       sample_size = n(),
@@ -188,7 +206,50 @@ geo_hh_by_num_vulnerable <- bind_rows(
          n_households) %>% 
   dplyr::rename("n_renter_households" = "n_households")
 
-write_csv(geo_hh_by_num_vulnerable, 
-          path = "data/tables/renter_households_by_num_vulnerable.csv")
+# write_csv(geo_hh_by_num_vulnerable, 
+#           path = "data/tables/renter_households_by_num_vulnerable.csv")
+
+#===============================================================================#
+# TALLY # OF HOUSEHOLDS WHERE ALL WORKERS ARE VULNERABLE
+#===============================================================================#
+
+# by state for Media Matters
+all_vulnerable_hh <- renters %>% 
+  filter(cost_burdened != "Zero household income") %>% 
+  select(SERIAL,
+         HHWT,
+         EMPSTAT,
+         sector) %>% 
+  mutate(
+    is_vulnerable = if_else(sector %in% vulnerable_sectors, 1, 0),
+    is_worker = if_else(sector != "NILF/unemployed", 1, 0)
+  ) %>% 
+  group_by(SERIAL) %>% 
+  mutate(
+    vulnerable_ct = sum(is_vulnerable),
+    worker_ct = sum(is_worker),
+    all_vulnerable = if_else(vulnerable_ct == worker_ct & 
+                               worker_ct > 0, 1, 0)
+  ) %>% 
+  ungroup() %>% 
+  left_join(distinct(renters,
+                   SERIAL,
+                   STATEFIP),
+            by = c("SERIAL")) %>% 
+  distinct(SERIAL, 
+           HHWT, 
+           STATEFIP,
+           vulnerable_ct,
+           worker_ct,
+           all_vulnerable)
 
 
+all_vulnerable_by_st <- all_vulnerable_hh %>% 
+  group_by(all_vulnerable, STATEFIP) %>% 
+  summarize(
+    sample_size = n(),
+    n_hh = sum(HHWT)
+  ) 
+
+write_csv(all_vulnerable_by_st,
+          path = "data/tables/renter_households_by_all_vulnerable.csv")
