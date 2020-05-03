@@ -4,6 +4,56 @@
 # Cecile Murray
 #===============================================================================#
 
+
+#===============================================================================#
+# VARIABLE LISTS
+#===============================================================================#
+
+person_vars <- c("PERIDNUM",
+                 "PH_SEQ",
+                 "PF_SEQ",
+                 "P_SEQ",
+                 "MARSUPWT",
+                 "GTCBSA",
+                 "A_AGE",
+                 "A_FAMTYP",
+                 "HHDFMX",
+                 "PERRP",
+                 "PEHSPNON",
+                 "PRDTRACE",
+                 "PEARNVAL",
+                 "SEMP_VAL",
+                 "ANN_VAL",
+                 "DBTN_VAL",
+                 "CAP_VAL",
+                 "DIV_VAL",
+                 "INT_VAL",
+                 "OI_OFF",
+                 "OI_VAL",
+                 "PNSN_VAL",
+                 "POTHVAL",
+                 "PTOTVAL",
+                 "RNT_VAL",
+                 "AGI",
+                 "DEP_STAT",
+                 "CTC_CRD",
+                 "ACTC_CRD",
+                 "EIT_CRED",
+                 "FED_RET",
+                 "FEDTAX_BC",
+                 "FEDTAX_AC",
+                 "FICA",
+                 "FILESTAT",
+                 "STATETAX_A",
+                 "STATETAX_B",
+                 "TAX_ID",
+                 "TAX_INC"
+                 )
+
+#===============================================================================#
+# INCOME
+#===============================================================================#
+
 recode_hhinc <- function(df) {
   df %>% mutate(hhinc_labels = case_when(
     HHINC == 1 ~ "$0 TO $2,500",

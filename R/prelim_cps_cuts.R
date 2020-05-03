@@ -9,21 +9,98 @@ libs <- c("here",
           "purrr",
           "knitr", 
           "kableExtra",
-          "janitor")
+          "janitor",
+          "matrixStats")
 lapply(libs, library, character.only = TRUE)
 
 # read in CPS ASEC household file and divide weights by 100
 cpshh <- read_csv("data/cps_asec/cpspb/hhpub19.csv") %>% 
   mutate(hhwt = HSUP_WGT / 100)
 
+# read in CPS ASEC person file 
+cpsper <- read_csv("data/cps_asec/cpspb/pppub19.csv") 
+
+# filter to just vars of interest
+persons <- cpsper %>% 
+  select(one_of(person_vars), # this is defined in another file right now
+         contains("SPM_")) %>% 
+  mutate(perwt = MARSUPWT / 100,
+         h_idnum = substr(PERIDNUM, 1, 20)) %>% 
+  left_join(
+    select(cpshh,
+           H_IDNUM,
+           GESTFIPS, 
+           H_TENURE,
+           HHSTATUS,
+           GTCBSAST,
+           GTMETSTA),
+    by = c("h_idnum" = "H_IDNUM")
+  )
+
+#===============================================================================#
+# SPM UNITS WHO ARE RENTERS
+#===============================================================================#
+
+# subset to renters who aren't in group quarters
+p_renters <- persons %>% 
+  filter(H_TENURE == 2,
+         HHSTATUS != 0) 
+
+# now I want to know what share have positive taxes after credits
+summary <- p_renters %>% 
+  filter(SPM_HEAD == 1) %>% 
+  mutate(
+    pos_fedtax_ac = if_else(SPM_FEDTAX > 0, 1, 0),
+    has_cap_gains = if_else(CAP_VAL > 0, 1, 0),
+    has_ret_ann = if_else(ANN_VAL > 0 | DBTN_VAL > 0, 1, 0),
+    has_div = if_else(DIV_VAL > 0, 1, 0),
+    has_int = if_else(INT_VAL > 0, 1, 0),
+    has_other = if_else(POTHVAL > 0, 1, 0),
+    # earn_pct_income = if_else(PTOTVAL != 0, PEARNVAL / PTOTVAL, NA_real_), # note this could be negative
+    std_deduct = case_when(
+      FILESTAT == 1 ~ 24400,
+      FILESTAT == 2 ~ 25700, # ignoring blind/disability increase here
+      FILESTAT == 3 ~ 27000,
+      FILESTAT == 4 ~ 18350,
+      FILESTAT == 5 ~ 12200,
+      FILESTAT == 6 ~ NA_real_
+    ),
+    state_tax_pct = SPM_STTAX / std_deduct,
+    state_tax_gt_std_dd = if_else(state_tax_pct > 0.75, 1, 0),
+    ct = 1
+  ) %>% 
+  select(-PERIDNUM, -h_idnum,  -std_deduct) %>%
+  summarize_at(vars(pos_fedtax_ac:ct),
+               list(~ sum(. * SPM_WEIGHT / 100, na.rm = TRUE),
+                    ~ mean(. * SPM_WEIGHT / 100, na.rm = TRUE))) %>% 
+  gather("var", "val",  -ct_sum) %>% 
+  mutate(share = val / ct_sum)
+
+# what about other sources?
+p_renters %>% dplyr::count(OI_OFF)
+
+p_renters %>% 
+  filter(OI_OFF != 0) %>% 
+  group_by(SPM_ID, SPM_WEIGHT) %>% 
+  summarize(
+    ct = sum(POTHVAL > 0,  na.rm = TRUE),
+    sum = sum(POTHVAL, na.rm = TRUE)
+  ) %>% 
+  ungroup() %>% 
+  summarize(
+    ct = sum((ct > 0) * SPM_WEIGHT / 100, na.rm = TRUE),
+    sum = sum(sum * SPM_WEIGHT / 100, na.rm = TRUE)
+  )
+
+#===============================================================================#
+# HOUSEHOLD TYPES AND SIZES
+#===============================================================================#
+
 # get renter households who aren't in group quarters
 renters <- cpshh %>% 
   filter(H_TENURE == 2,
          HHSTATUS != 0) 
 
-#===============================================================================#
-# HOUSEHOLD TYPES AND SIZES
-#===============================================================================#
 
 # family households vs. not, household totals look like ACS totals
 renters %>% 
