@@ -16,6 +16,8 @@ lapply(libs, library, character.only = TRUE)
 load("data/acs/prepared_data_2018.Rdata")
 load("data/acs/renters_2018.Rdata")
 
+source("covid_rent_burden/preprocess/utils.R")
+
 # PUMA-metro crosswalk
 puma_xwalk <- read_csv("data/geo/puma_county_metro_xwalk.csv")
 
@@ -127,30 +129,6 @@ st_table <- assemble_table(st_industry,
 # save(st_table, file = "st_burden_by_sector.Rdata")
 
 # METRO LEVEL  =============================#
-
-# function to allocate PUMAs to metros
-allocate_puma_to_metro <- function(df, groups = c("")) {
-  df %>% 
-    ungroup() %>% 
-    left_join(select(puma_xwalk,
-                          puma_id,
-                          stcofips,
-                          afact),
-                   by = "puma_id") %>% 
-    group_by_at(vars(one_of(c("stcofips", groups)))) %>% 
-    summarize_at(vars(contains("n_"), 
-                      contains("sample_size")),
-                 ~ sum(. * afact)) %>% 
-    left_join(distinct(puma_xwalk,
-                     stcofips,
-                     cbsa_code),
-              by = "stcofips") %>% 
-    ungroup() %>% 
-    select(-stcofips) %>% 
-    group_by_at(vars(one_of(c("cbsa_code", groups)))) %>% 
-    summarize_all(~round(sum(.))) 
-}
-
 
 # total worker counts by metro
 metro_industry <- data %>% 

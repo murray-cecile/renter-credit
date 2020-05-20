@@ -108,7 +108,8 @@ data %<>%
       between(HHINCOME, 50000, 75000) ~ "50-75K",
       between(HHINCOME, 75000, 100000) ~ "75-100K",
       between(HHINCOME, 100000, 150000) ~ "100-150K",
-      HHINCOME > 150000 ~ ">150K"
+      between(HHINCOME, 150000, 999998) ~ ">150K",
+      HHINCOME == 9999999 ~ NA_character_
     ),
     income_level = factor(income_level,
                           levels = c("Under 25K", "25-50K", "50-75K",
